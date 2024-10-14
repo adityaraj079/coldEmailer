@@ -1,5 +1,5 @@
-streamlit==1.39.0
-selenium==4.20.0
+streamlit
+selenium
 webdriver-manager==3.8.5
 beautifulsoup4==4.12.0
-pillow==9.5.0
+pillow
