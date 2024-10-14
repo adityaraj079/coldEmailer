@@ -2,4 +2,4 @@ streamlit
 selenium
 webdriver-manager
 beautifulsoup4
-playwright
+requests

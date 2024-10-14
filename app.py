@@ -15,17 +15,7 @@ from bs4 import BeautifulSoup
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from playwright.sync_api import sync_playwright
 
-def install_playwright_browsers():
-    with sync_playwright() as p:
-        p.chromium.install()  # This will download the necessary browser binaries
-        # You can install other browsers as needed
-        # p.firefox.install()
-        # p.webkit.install()
-
-# Call the function when the app starts
-install_playwright_browsers()
 # 2. Set page configuration to wide layout
 st.set_page_config(layout="wide")
 
@@ -55,10 +45,25 @@ def log_sent_email(email):
     with open(EMAIL_LOG_FILE, "a") as f:  # Append mode
         f.write(f"{email}\n")
 
+# 9. Function to set up Selenium WebDriver with headless Chrome
 def setup_driver():
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        return browser
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")  # Run in headless mode
+    options.add_argument("--disable-gpu")  # Disable GPU acceleration
+    options.add_argument("--no-sandbox")  # Bypass OS security model
+    options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
+    options.add_argument("--window-size=1920,1080")  # Set window size to ensure all elements load correctly
+    options.add_argument("--disable-software-rasterizer")  # Disable SwiftShader
+    options.add_argument("--disable-webgl")  # Disable WebGL if not needed
+    options.add_argument("--disable-extensions")  # Disable extensions
+    options.add_argument("--disable-background-networking")
+    options.add_argument("--disable-background-timer-throttling")
+    options.add_argument("--disable-backgrounding-occluded-windows")
+    options.add_argument("--disable-renderer-backgrounding")
+    options.add_argument("--force-color-profile=srgb")  # Ensure color profile consistency
+    
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    return driver
 
 # 10. Function to perform Google search and return page content
 def google_search(driver, query, num_results=5):
