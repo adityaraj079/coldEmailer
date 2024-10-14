@@ -1,5 +1,4 @@
-chromium
-chromium-driver
+chromium-browser
 libglib2.0-0
 libnss3
 libgconf-2-4
@@ -21,3 +20,5 @@ libfontconfig1
 libgtk-3-0
 libx11-xcb1
 libxkbcommon0
+libjpeg-dev
+zlib1g-dev

@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from smtplib import SMTP
+import platform
 
 # 2. Set page configuration to wide layout
 st.set_page_config(layout="wide")
@@ -46,26 +47,61 @@ def log_sent_email(email):
     with open(EMAIL_LOG_FILE, "a") as f:  # Append mode
         f.write(f"{email}\n")
 
+# Function to launch Pyppeteer browser with OS-specific configurations
+async def get_browser():
+    current_os = platform.system()
+    
+    if current_os == 'Windows':
+        # Option 1: Let Pyppeteer handle Chromium download automatically
+        browser = await launch(
+            headless=True,
+            args=[
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--disable-software-rasterizer',
+                '--disable-webgl',
+                '--disable-extensions',
+                '--disable-background-networking',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--force-color-profile=srgb',
+                '--window-size=1920,1080'
+            ]
+            # executablePath is not set for Windows
+        )
+        # Alternatively, specify the path if you've manually installed Chromium
+        # browser = await launch(
+        #     executablePath=r'C:\Chromium\chrome.exe',
+        #     headless=True,
+        #     args=[...]
+        # )
+    else:
+        # For Linux (e.g., Streamlit Cloud)
+        browser = await launch(
+            executablePath='/usr/bin/chromium-browser',
+            headless=True,
+            args=[
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--disable-software-rasterizer',
+                '--disable-webgl',
+                '--disable-extensions',
+                '--disable-background-networking',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--force-color-profile=srgb',
+                '--window-size=1920,1080'
+            ]
+        )
+    return browser
+
 # Function to perform Google search and return page content using Pyppeteer
 async def google_search(query, num_results=5):
-    browser = await launch(
-        executablePath='/usr/bin/chromium-browser',  # Path to system-installed Chromium
-        headless=True,
-        args=[
-            '--no-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--disable-software-rasterizer',
-            '--disable-webgl',
-            '--disable-extensions',
-            '--disable-background-networking',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            '--force-color-profile=srgb',
-            '--window-size=1920,1080'
-        ]
-    )
+    browser = await get_browser()
     page = await browser.newPage()
     search_url = f"https://www.google.com/search?q={query}&num={num_results}"
     await page.goto(search_url)
@@ -84,24 +120,7 @@ async def google_search(query, num_results=5):
 # Function to scrape emails from a list of links using Pyppeteer
 async def scrape_emails_from_links(links):
     emails_found = []
-    browser = await launch(
-        executablePath='/usr/bin/chromium-browser',  # Path to system-installed Chromium
-        headless=True,
-        args=[
-            '--no-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--disable-software-rasterizer',
-            '--disable-webgl',
-            '--disable-extensions',
-            '--disable-background-networking',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            '--force-color-profile=srgb',
-            '--window-size=1920,1080'
-        ]
-    )
+    browser = await get_browser()
     for link in links:
         try:
             page = await browser.newPage()
@@ -115,7 +134,6 @@ async def scrape_emails_from_links(links):
         except Exception as e:
             logging.error(f"Could not access {link}: {e}")
             add_log(f"❌ Could not access {link}: {e}")
-
     await browser.close()
     return emails_found
 
@@ -173,7 +191,7 @@ def add_log(message, log_container=None):
     if log_container:
         log_display = "\n".join(st.session_state.logs)
         log_container.text_area("Logs", value=log_display, height=300, key=f'log_text_{len(st.session_state.logs)}', disabled=True)
-    
+
 # 15. Initialize session state for logs if not already present
 if 'logs' not in st.session_state:
     st.session_state.logs = []
