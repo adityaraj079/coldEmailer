@@ -1,25 +1,25 @@
 import logging
 
 # 1. Configure logging before other imports
-logging.basicConfig(filename='app.log', level=logging.INFO,
-                    format='%(asctime)s:%(levelname)s:%(message)s')
+logging.basicConfig(
+    filename='app.log',
+    level=logging.INFO,
+    format='%(asctime)s:%(levelname)s:%(message)s'
+)
 
+import asyncio
+from pyppeteer import launch
 import streamlit as st
 import time
 import re
 import os
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-from webdriver_manager.core.os_manager import ChromeType
 from bs4 import BeautifulSoup
-import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from smtplib import SMTP
 
 # 2. Set page configuration to wide layout
 st.set_page_config(layout="wide")
-
 
 # 4. File to store previously sent emails
 EMAIL_LOG_FILE = "sent_emails.txt"
@@ -46,65 +46,80 @@ def log_sent_email(email):
     with open(EMAIL_LOG_FILE, "a") as f:  # Append mode
         f.write(f"{email}\n")
 
-# 9. Function to set up Selenium WebDriver with headless Chrome
-def setup_driver():
-    options = webdriver.ChromeOptions()
-    
-    # Headless mode and other options
-    options.add_argument("--headless")  # Run in headless mode
-    options.add_argument("--disable-gpu")  # Disable GPU acceleration
-    options.add_argument("--no-sandbox")  # Bypass OS security model
-    options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
-    options.add_argument("--window-size=1920,1080")  # Set window size to ensure all elements load correctly
-    options.add_argument("--disable-software-rasterizer")  # Disable SwiftShader
-    options.add_argument("--disable-webgl")  # Disable WebGL if not needed
-    options.add_argument("--disable-extensions")  # Disable extensions
-    options.add_argument("--disable-background-networking")
-    options.add_argument("--disable-background-timer-throttling")
-    options.add_argument("--disable-backgrounding-occluded-windows")
-    options.add_argument("--disable-renderer-backgrounding")
-    options.add_argument("--force-color-profile=srgb")  # Ensure color profile consistency
-    
-    # Specify the path to the Chromium binary installed by Aptfile
-    options.binary_location = "/usr/bin/chromium-browser"
-    
-    # Initialize the ChromeDriver using webdriver-manager
-    driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install()),
-        options=options
+# Function to perform Google search and return page content using Pyppeteer
+async def google_search(query, num_results=5):
+    browser = await launch(
+        executablePath='/usr/bin/chromium-browser',  # Path to system-installed Chromium
+        headless=True,
+        args=[
+            '--no-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--disable-software-rasterizer',
+            '--disable-webgl',
+            '--disable-extensions',
+            '--disable-background-networking',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--force-color-profile=srgb',
+            '--window-size=1920,1080'
+        ]
     )
-    return driver
-
-# 10. Function to perform Google search and return page content
-def google_search(driver, query, num_results=5):
+    page = await browser.newPage()
     search_url = f"https://www.google.com/search?q={query}&num={num_results}"
-    driver.get(search_url)
-    time.sleep(3)  # Allow time for the page to load
+    await page.goto(search_url)
+    await page.waitForSelector('body', {'visible': True})  # Wait for page content to load
 
-    # Parse the page content with BeautifulSoup
-    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    # Parse the page content with Pyppeteer's evaluate function
+    content = await page.evaluate('''() => document.documentElement.outerHTML''')
+    soup = BeautifulSoup(content, 'html.parser')
 
     # Collect all the links in the search results
     links = [a['href'] for a in soup.find_all('a', href=True) if "http" in a['href']]
+    await browser.close()
+
     return links
 
-# 11. Function to visit each link and scrape emails
-def scrape_emails_from_links(driver, links):
+# Function to scrape emails from a list of links using Pyppeteer
+async def scrape_emails_from_links(links):
     emails_found = []
+    browser = await launch(
+        executablePath='/usr/bin/chromium-browser',  # Path to system-installed Chromium
+        headless=True,
+        args=[
+            '--no-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--disable-software-rasterizer',
+            '--disable-webgl',
+            '--disable-extensions',
+            '--disable-background-networking',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--force-color-profile=srgb',
+            '--window-size=1920,1080'
+        ]
+    )
     for link in links:
         try:
-            driver.get(link)
-            time.sleep(3)  # Allow time for the page to load
-            page_content = driver.page_source
+            page = await browser.newPage()
+            await page.goto(link)
+            await page.waitForSelector('body', {'visible': True})  # Wait for page content to load
+            page_content = await page.evaluate('''() => document.documentElement.outerHTML''')
             emails = extract_emails(page_content)
             if emails:
                 emails_found.extend(emails)
+            await page.close()
         except Exception as e:
             logging.error(f"Could not access {link}: {e}")
-            # add_log(f"❌ Could not access {link}: {e}")
+            add_log(f"❌ Could not access {link}: {e}")
+
+    await browser.close()
     return emails_found
 
-# 12. Function to send email
+# Function to send email
 def send_email(to_email, subject, body):
     # Retrieve email credentials from Streamlit secrets
     from_email = st.secrets["email"]["from_email"]
@@ -120,7 +135,7 @@ def send_email(to_email, subject, body):
 
     try:
         # Set up the server
-        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server = SMTP('smtp.gmail.com', 587)
         server.starttls()  # Upgrade the connection to secure
 
         # Log in to your email account
@@ -164,7 +179,7 @@ if 'logs' not in st.session_state:
     st.session_state.logs = []
 
 # 17. Main function for Streamlit app
-def main():
+async def main():
     st.title("📧 Email Scraper and Sender")
 
     # Create two columns with a 4:6 ratio (40% input, 60% logs)
@@ -172,7 +187,7 @@ def main():
 
     with col1:
         st.header("📥 Input Section")
-        
+
         # Input field for email body with default value
         default_email_body = """Hi,
 
@@ -195,44 +210,55 @@ Notice Period: Immediate joiner
 Resume link: https://drive.google.com/file/d/17xPcYU3TpXYBBPvDXxTf-N-6k7z9WeDO/view?usp=sharing 
 
 Thank you for considering my application. I look forward to discussing how my skills can benefit your team.
-"""
+        """
         email_body = st.text_area("📝 Enter Email Body", default_email_body, height=300)
-        
+
         # Button to run the script
         run_script = st.button("🚀 Run Script")
-    
+
     with col2:
         st.header("📊 Output Logs")
         log_container = st.empty()  # Initialize the log container
-
-    # Initialize session state for logs if it doesn't exist
-    if 'logs' not in st.session_state:
-        st.session_state.logs = []
 
     if run_script:
         # Add a spinner to indicate processing
         with st.spinner("🔄 Running the script..."):
             try:
-                # Initialize Selenium WebDriver
-                driver = setup_driver()
-
                 # Define your queries
                 queries = [
                     "DevOps Engineer hiring contact email",
-                    # ... [rest of your queries]
+                    "AWS DevOps hiring email",
+                    "Hiring SRE contact emails",
+                    "Kubernetes DevOps job email",
+                    "Python Developer hiring contact",
+                    "DevOps job opportunities contact",
+                    "Cloud Engineer hiring emails",
+                    "IT Manager hiring emails",
+                    "Software Engineer hiring contact email",
+                    "IT Support hiring email",
+                    "DevOps Consultant hiring contacts",
+                    "Sysadmin job contact emails",
+                    "Platform Engineer hiring email",
+                    "Automation Engineer hiring emails",
+                    "Tech Lead hiring emails",
+                    "Infrastructure Engineer hiring contacts",
+                    "Site Reliability Engineer hiring email",
+                    "Cloud Architect hiring contacts",
+                    "Full Stack Developer hiring email",
+                    "IT Operations hiring emails",
                 ]
-                
+
                 # Load previously sent emails
                 sent_emails = load_sent_emails()
 
                 total_queries = len(queries)
                 progress_bar = st.progress(0)
-                
+
                 # Start the email sending process
                 for idx, query in enumerate(queries):
                     add_log(f"🔍 Searching for: {query}", log_container)  # Pass log_container
-                    result_links = google_search(driver, query, num_results=5)
-                    all_emails = scrape_emails_from_links(driver, result_links)
+                    result_links = await google_search(query, num_results=5)
+                    all_emails = await scrape_emails_from_links(result_links)
                     unique_emails = list(set(all_emails))
                     valid_emails = filter_invalid_emails(unique_emails)
 
@@ -249,15 +275,12 @@ Thank you for considering my application. I look forward to discussing how my sk
                     progress = (idx + 1) / total_queries
                     progress_bar.progress(progress)
 
-                # Close the Selenium WebDriver
-                driver.quit()
+                st.success("✅ Email sending process completed!")
 
             except Exception as e:
                 add_log(f"❌ An unexpected error occurred: {e}", log_container)  # Pass log_container
                 logging.error(f"An unexpected error occurred: {e}")
                 st.error(f"An unexpected error occurred: {e}")
 
-        st.success("✅ Email sending process completed!")
-
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
