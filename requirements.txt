@@ -1,5 +1,5 @@
 streamlit
 selenium
-webdriver-manager==3.8.5
+webdriver-manager
 beautifulsoup4==4.12.0
 pillow
