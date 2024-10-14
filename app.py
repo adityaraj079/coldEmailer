@@ -17,6 +17,15 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from playwright.sync_api import sync_playwright
 
+def install_playwright_browsers():
+    with sync_playwright() as p:
+        p.chromium.install()  # This will download the necessary browser binaries
+        # You can install other browsers as needed
+        # p.firefox.install()
+        # p.webkit.install()
+
+# Call the function when the app starts
+install_playwright_browsers()
 # 2. Set page configuration to wide layout
 st.set_page_config(layout="wide")
 
