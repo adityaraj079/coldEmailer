@@ -11,6 +11,7 @@ import os
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.os_manager import ChromeType
 from bs4 import BeautifulSoup
 import smtplib
 from email.mime.text import MIMEText
@@ -49,7 +50,8 @@ def log_sent_email(email):
 def setup_driver():
     options = webdriver.ChromeOptions()
     
-    # options.add_argument("--headless")  # Run in headless mode
+    # Headless mode and other options
+    options.add_argument("--headless")  # Run in headless mode
     options.add_argument("--disable-gpu")  # Disable GPU acceleration
     options.add_argument("--no-sandbox")  # Bypass OS security model
     options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
@@ -63,7 +65,14 @@ def setup_driver():
     options.add_argument("--disable-renderer-backgrounding")
     options.add_argument("--force-color-profile=srgb")  # Ensure color profile consistency
     
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    # Specify the path to the Chromium binary installed by Aptfile
+    options.binary_location = "/usr/bin/chromium-browser"
+    
+    # Initialize the ChromeDriver using webdriver-manager
+    driver = webdriver.Chrome(
+        service=Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install()),
+        options=options
+    )
     return driver
 
 # 10. Function to perform Google search and return page content
